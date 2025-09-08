@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colores principales -->
+    <color name="red_primary">#DC143C</color>
+    <color name="red_dark">#B71C1C</color>
+    <color name="red_light">#FF5252</color>
+
+    <!-- Colores secundarios -->
+    <color name="orange_accent">#FF6D00</color>
+    <color name="orange_dark">#E65100</color>
+    <color name="orange_light">#FF9800</color>
+
+    <!-- Colores de fondo -->
+    <color name="background_dark">#0D1117</color>
+    <color name="surface_dark">#161B22</color>
+    <color name="surface_variant">#21262D</color>
+
+    <!-- Colores de texto -->
+    <color name="white">#FFFFFF</color>
+    <color name="text_primary">#F0F6FC</color>
+    <color name="text_secondary">#8B949E</color>
+    <color name="text_accent">#58A6FF</color>
+
+    <!-- Colores de estado -->
+    <color name="success">#238636</color>
+    <color name="warning">#D29922</color>
+    <color name="danger">#DA3633</color>
+
+    <!-- Colores transparentes -->
+    <color name="black_overlay">#66000000</color>
+    <color name="red_overlay">#66DC143C</color>
+
+    <!-- Gradientes para el botón -->
+    <color name="gradient_start">#FF1744</color>
+    <color name="gradient_end">#D50000</color>
+
+    <color name="green_primary">#1DB954</color>
+</resources>

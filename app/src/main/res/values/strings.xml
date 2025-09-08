@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pánico</string>
+
+    <!-- Textos de la interfaz -->
+    <string name="emergency_title">BOTÓN DE EMERGENCIA</string>
+    <string name="emergency_subtitle">En caso de peligro, mantén presionado el botón rojo por 5 segundos</string>
+    <string name="emergency_button_text">SOS\nEMERGENCIA</string>
+    <string name="hold_instruction">Mantén presionado por 5 segundos</string>
+
+    <!-- Estados -->
+    <string name="status_ready">🟢 Sistema listo</string>
+    <string name="status_pressing">⏱️ Manteniendo presionado...</string>
+    <string name="status_countdown">🚨 Activando en: %d segundos</string>
+    <string name="status_activated">🚨 EMERGENCIA ACTIVADA</string>
+    <string name="status_cancelled">❌ Cancelado</string>
+
+    <!-- Ubicación -->
+    <string name="location_obtaining">📍 Obteniendo ubicación...</string>
+    <string name="location_found">📍 Ubicación: %.6f, %.6f</string>
+    <string name="location_not_found">📍 Ubicación no disponible</string>
+
+    <!-- Contacto -->
+    <string name="emergency_contact_hint">Número de contacto de emergencia</string>
+    <string name="emergency_contact_label">CONTACTO DE EMERGENCIA (MÉXICO)</string>
+    <string name="save_number">Guardar número</string>
+    <string name="number_saved">✅ Número guardado correctamente</string>
+    <string name="enter_valid_number">⚠️ Ingresa un número válido</string>
+
+    <!-- Mensajes -->
+    <string name="sms_sent">✅ SMS de emergencia enviado</string>
+    <string name="calling_emergency">📞 Llamando a emergencias...</string>
+    <string name="permissions_granted">✅ Permisos otorgados</string>
+    <string name="permissions_needed">⚠️ Se necesitan todos los permisos</string>
+
+    <!-- Errores -->
+    <string name="error_sms">❌ Error al enviar SMS</string>
+    <string name="error_call">❌ Error al realizar llamada</string>
+    <string name="error_location">❌ Error al obtener ubicación</string>
+    <string name="no_contact">⚠️ Configure un contacto de emergencia</string>
+
+    <!-- Mensaje de emergencia -->
+    <string name="emergency_sms_template">🚨 ALERTA DE EMERGENCIA 🚨\n\nNecesito ayuda urgente.\n\nUbicación actual:\nLatitud: %f\nLongitud: %f\n\nVer en mapa: https://maps.google.com/?q=%f,%f\n\n⏰ Enviado: %s</string>
+    <string name="emergency_sms_no_location">🚨 ALERTA DE EMERGENCIA 🚨\n\nNecesito ayuda urgente.\n\n❌ No se pudo obtener ubicación GPS\n\n⏰ Enviado: %s</string>
+</resources>

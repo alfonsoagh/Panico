@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "600814040168",
+    "firebase_url": "https://panico-mexico-default-rtdb.firebaseio.com",
+    "project_id": "panico-mexico",
+    "storage_bucket": "panico-mexico.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:600814040168:android:ab9ac476e21b9bc70037dd",
+        "android_client_info": {
+          "package_name": "com.example.panico"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8itA7shBr6YXbbRtvZ6-ERHBGQwJuKQ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
