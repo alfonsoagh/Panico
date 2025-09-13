@@ -188,3 +188,5 @@ public class PanicLocationService extends Service implements LocationListener {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 }
+
+
