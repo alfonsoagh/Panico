@@ -3,19 +3,26 @@ package com.example.panico;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.location.Location;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+
+import com.google.android.gms.location.Priority;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.CancellationTokenSource;
 
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
@@ -23,7 +30,13 @@ import com.google.firebase.database.FirebaseDatabase;
 import java.util.HashMap;
 import java.util.Map;
 
-public class PanicLocationService extends Service implements LocationListener {
+/**
+ * - Actualiza por TIEMPO (cada 2s), no por distancia
+ * - PRIORITY_HIGH_ACCURACY
+ * - Pide un fix inicial preciso (getCurrentLocation)
+ * - Filtra lecturas con mala accuracy (>50m) o mock
+ */
+public class PanicLocationService extends Service {
 
     public static final String ACTION_START = "com.example.panico.ACTION_START";
     public static final String ACTION_STOP  = "com.example.panico.ACTION_STOP";
@@ -34,18 +47,24 @@ public class PanicLocationService extends Service implements LocationListener {
     // Broadcast para sincronizar UI en MainActivity
     public static final String ACTION_TRACKING_STATE = MainActivity.ACTION_TRACKING_STATE;
 
-    private LocationManager locationManager;
+    // Intervalos (ms)
+    private static final long INTERVAL_MS = 2000;     // cada 2s
+    private static final long FASTEST_MS = 1000;      // como mínimo 1s
+    private static final float MAX_ALLOWED_ACCURACY_M = 50f; // descarta lecturas peores a 50m
+
+    private FusedLocationProviderClient fused;
+    private LocationCallback callback;
     private DatabaseReference dbRoot;
     private String shareId;
 
-    public static Intent startIntent(Context ctx, String shareId) {
+    public static Intent startIntent(android.content.Context ctx, String shareId) {
         Intent i = new Intent(ctx, PanicLocationService.class);
         i.setAction(ACTION_START);
         i.putExtra(EXTRA_SHARE_ID, shareId);
         return i;
     }
 
-    public static Intent stopIntent(Context ctx) {
+    public static Intent stopIntent(android.content.Context ctx) {
         Intent i = new Intent(ctx, PanicLocationService.class);
         i.setAction(ACTION_STOP);
         return i;
@@ -55,8 +74,9 @@ public class PanicLocationService extends Service implements LocationListener {
     public void onCreate() {
         super.onCreate();
         dbRoot = FirebaseDatabase.getInstance().getReference();
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        fused = LocationServices.getFusedLocationProviderClient(this);
         createChannelIfNeeded();
+        buildCallback();
     }
 
     @Override
@@ -67,28 +87,36 @@ public class PanicLocationService extends Service implements LocationListener {
         if (ACTION_START.equals(action)) {
             shareId = intent.getStringExtra(EXTRA_SHARE_ID);
 
-            // Asegura que el share vuelva a ser público al iniciar
+            // Asegura visibilidad pública del share al iniciar
             setShareVisibility(true);
 
-            // Notificación con botón "Detener"
-            startForeground(NOTIF_ID, buildNotificationWithStopAction());
+            // Foreground mínimo (no se puede ocultar en Android 8+)
+            startForeground(NOTIF_ID, buildMinNotification());
 
-            // Pedir updates SOLO cuando el service está activo
-            try {
-                if (locationManager != null) {
-                    if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 10f, this);
-                    }
-                    if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000, 10f, this);
-                    }
-                }
-            } catch (SecurityException ignored) {}
+            // Verifica settings (GPS encendido, alta precisión)
+            LocationRequest req = buildLocationRequest();
+            LocationSettingsRequest settingsReq = new LocationSettingsRequest.Builder()
+                    .addLocationRequest(req)
+                    .setAlwaysShow(false)
+                    .build();
 
-            // Avisar a la UI
-            sendBroadcast(new Intent(ACTION_TRACKING_STATE).putExtra("active", true));
+            Task<LocationSettingsResponse> settingsTask =
+                    LocationServices.getSettingsClient(this).checkLocationSettings(settingsReq);
 
-            // No queremos que el sistema lo reviva si muere
+            settingsTask.addOnSuccessListener(r -> {
+                // Arranca actualizaciones por tiempo
+                startTimedUpdates(req);
+                // Pide un fix inicial de alta precisión para acelerar el arranque
+                requestOneAccurateFix();
+                // Notifica a la UI
+                sendBroadcast(new Intent(ACTION_TRACKING_STATE).putExtra("active", true));
+            }).addOnFailureListener(e -> {
+                // Aun si falla, intenta con lo que haya
+                startTimedUpdates(req);
+                requestOneAccurateFix();
+                sendBroadcast(new Intent(ACTION_TRACKING_STATE).putExtra("active", true));
+            });
+
             return START_NOT_STICKY;
 
         } else if (ACTION_STOP.equals(action)) {
@@ -99,44 +127,52 @@ public class PanicLocationService extends Service implements LocationListener {
         return START_NOT_STICKY;
     }
 
-    private Notification buildNotificationWithStopAction() {
-        Intent openApp = new Intent(this, MainActivity.class);
-        PendingIntent contentPi = PendingIntent.getActivity(
-                this, 1, openApp,
-                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)
-        );
-
-        // Acción DETENER
-        Intent stopI = new Intent(this, PanicLocationService.class).setAction(ACTION_STOP);
-        PendingIntent stopPi = PendingIntent.getService(
-                this, 2, stopI,
-                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)
-        );
-
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher) // asegúrate de tener un ícono válido
-                .setContentTitle("Envío de ubicación activo")
-                .setContentText("Tu posición se comparte en tiempo real.")
-                .setContentIntent(contentPi)
-                .setOngoing(true)
-                .addAction(new NotificationCompat.Action(
-                        R.drawable.apppanico, "Detener", stopPi // usa un drawable existente
-                ))
+    private LocationRequest buildLocationRequest() {
+        // Builder nuevo de Play Services (intervalo por tiempo, no por distancia)
+        return new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MS)
+                .setMinUpdateIntervalMillis(FASTEST_MS)
+                .setWaitForAccurateLocation(true)     // pide una lectura precisa cuando sea posible
+                .setMaxUpdateDelayMillis(INTERVAL_MS) // sin batching
                 .build();
     }
 
-    private void createChannelIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, "Seguimiento emergencia", NotificationManager.IMPORTANCE_LOW);
-            NotificationManager nm = getSystemService(NotificationManager.class);
-            nm.createNotificationChannel(ch);
-        }
+    private void startTimedUpdates(LocationRequest req) {
+        try {
+            fused.requestLocationUpdates(req, callback, getMainLooper());
+        } catch (SecurityException ignored) {}
     }
 
-    @Override
-    public void onLocationChanged(@NonNull Location loc) {
-        // SOLO el Service sube a Firebase
+    private void requestOneAccurateFix() {
+        try {
+            CancellationTokenSource cts = new CancellationTokenSource();
+            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.getToken())
+                    .addOnSuccessListener(loc -> {
+                        if (loc != null) handleLocation(loc);
+                    });
+        } catch (SecurityException ignored) {}
+    }
+
+    private void buildCallback() {
+        callback = new LocationCallback() {
+            @Override public void onLocationResult(@NonNull com.google.android.gms.location.LocationResult result) {
+                for (Location l : result.getLocations()) handleLocation(l);
+            }
+        };
+    }
+
+    private void handleLocation(Location loc) {
+        if (loc == null) return;
+        // Filtra mock y lecturas imprecisas
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (loc.isMock()) return;
+        } else if (loc.isFromMockProvider()) {
+            return;
+        }
+        if (loc.hasAccuracy() && loc.getAccuracy() > MAX_ALLOWED_ACCURACY_M) {
+            // Demasiado imprecisa, descarta
+            return;
+        }
+
         if (dbRoot == null || shareId == null) return;
         Map<String, Object> payload = new HashMap<>();
         payload.put("lat", loc.getLatitude());
@@ -149,22 +185,14 @@ public class PanicLocationService extends Service implements LocationListener {
     }
 
     private void stopTracking(boolean clearFirebase) {
-        // 1) Quitar updates
-        try { if (locationManager != null) locationManager.removeUpdates(this); } catch (Exception ignored) {}
+        try { fused.removeLocationUpdates(callback); } catch (Exception ignored) {}
 
-        // 2) Limpieza "suave" en Firebase si se pide
         if (clearFirebase && dbRoot != null && shareId != null) {
-            // Borrar ubicación visible
             dbRoot.child("shares").child(shareId).child("location").removeValue();
-
-            // Ocultar el share en la web y marcar stop
             setShareVisibility(false);
         }
 
-        // 3) Avisar a la UI
         sendBroadcast(new Intent(ACTION_TRACKING_STATE).putExtra("active", false));
-
-        // 4) Detener foreground y Service
         stopForeground(true);
         stopSelf();
     }
@@ -177,16 +205,33 @@ public class PanicLocationService extends Service implements LocationListener {
         dbRoot.child("shares").child(shareId).updateChildren(meta);
     }
 
+    private void createChannelIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel ch = new NotificationChannel(
+                    CHANNEL_ID, "Seguimiento emergencia", NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("Ubicación en vivo durante emergencias");
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            nm.createNotificationChannel(ch);
+        }
+    }
+
+    private Notification buildMinNotification() {
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Envío de ubicación activo")
+                .setContentText("Compartiendo tu posición (alta precisión)")
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build();
+    }
+
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        // Si el usuario "cierra" desde recientes, detenemos y limpiamos Firebase
+        // Si el usuario "cierra" desde recientes
         stopTracking(/*clearFirebase=*/true);
         super.onTaskRemoved(rootIntent);
     }
 
     @Nullable
-    @Override
-    public IBinder onBind(Intent intent) { return null; }
+    @Override public IBinder onBind(Intent intent) { return null; }
 }
-
-

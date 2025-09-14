@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -13,12 +12,11 @@
         android:layout_height="wrap_content"
         android:padding="24dp">
 
-        <!-- Barra superior -->
+        <!-- Barra superior (sin botón de agregar) -->
         <RelativeLayout
             android:id="@+id/topBar"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_alignParentTop="true">
+            android:layout_height="48dp">
 
             <TextView
                 android:id="@+id/tvTitulo"
@@ -27,18 +25,8 @@
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
                 android:text="@string/emergency_title" />
-
-            <ImageButton
-                android:id="@+id/btnContactos"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_user_add_24" />
         </RelativeLayout>
 
-        <!-- Subtítulo debajo de la barra -->
         <TextView
             android:id="@+id/tvSubtitulo"
             style="@style/SubtitleTextStyle"
@@ -47,11 +35,8 @@
             android:layout_below="@id/topBar"
             android:layout_centerHorizontal="true"
             android:layout_marginTop="8dp"
-            android:text="@string/emergency_subtitle"
-            android:gravity="center"
-            android:lineSpacingExtra="2dp" />
+            android:text="@string/emergency_subtitle" />
 
-        <!-- Contenedor del botón principal -->
         <RelativeLayout
             android:id="@+id/buttonContainer"
             android:layout_width="match_parent"
@@ -60,7 +45,6 @@
             android:layout_marginTop="40dp"
             android:gravity="center">
 
-            <!-- Círculo de fondo animado -->
             <View
                 android:id="@+id/animatedCircle"
                 android:layout_width="260dp"
@@ -69,19 +53,15 @@
                 android:background="@drawable/animated_circle"
                 android:alpha="0.3" />
 
-            <!-- Botón de emergencia principal -->
             <Button
                 android:id="@+id/btnEmergencia"
                 style="@style/EmergencyButtonStyle"
                 android:layout_centerInParent="true"
                 android:background="@drawable/ripple_effect"
                 android:text="@string/emergency_button_text"
-                android:textAllCaps="false"
-                android:clickable="true"
-                android:focusable="true" />
+                android:textAllCaps="false" />
         </RelativeLayout>
 
-        <!-- Indicador de progreso circular -->
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="280dp"
@@ -89,13 +69,12 @@
             android:layout_centerHorizontal="true"
             android:layout_alignTop="@id/buttonContainer"
             android:layout_marginTop="10dp"
-            android:indeterminate="false"
             android:max="100"
             android:progress="0"
+            android:indeterminate="false"
             android:progressDrawable="@drawable/circular_progress"
             android:visibility="gone" />
 
-        <!-- Estado actual -->
         <LinearLayout
             android:id="@+id/statusLayout"
             android:layout_width="match_parent"
@@ -111,10 +90,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/status_ready"
-                android:gravity="center"
                 android:padding="12dp"
-                android:background="@drawable/status_background"
-                android:drawablePadding="8dp" />
+                android:background="@drawable/status_background" />
 
             <TextView
                 android:id="@+id/tvContador"
@@ -129,7 +106,6 @@
                 tools:text="5" />
         </LinearLayout>
 
-        <!-- Información de ubicación -->
         <LinearLayout
             android:id="@+id/locationLayout"
             android:layout_width="match_parent"
@@ -146,8 +122,7 @@
                 android:text="📍 UBICACIÓN GPS"
                 android:textColor="@color/text_accent"
                 android:textSize="12sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1" />
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvUbicacion"
@@ -160,27 +135,24 @@
                 android:fontFamily="monospace" />
         </LinearLayout>
 
-        <!-- Sección de contacto antiguo (oculta, ya se gestiona en ContactsActivity) -->
-        <LinearLayout
-            android:id="@+id/contactLayout"
+        <!-- Botón para abrir Contactos de emergencia -->
+        <Button
+            android:id="@+id/btnOpenContacts"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/locationLayout"
             android:layout_marginTop="16dp"
-            android:orientation="vertical"
-            android:background="@drawable/info_card_background"
-            android:padding="16dp"
-            android:visibility="gone" />
+            android:text="Contactos de emergencia"
+            android:textAllCaps="false" />
 
-        <!-- Información adicional -->
         <TextView
             android:id="@+id/tvInfo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/contactLayout"
-            android:layout_marginTop="24dp"
+            android:layout_below="@id/btnOpenContacts"
+            android:layout_marginTop="16dp"
             android:layout_marginBottom="20dp"
-            android:text="⚠️ Esta app enviará tu ubicación por SMS y realizará una llamada automática al presionar el botón por 5 segundos. Configura tus contactos de emergencia con el botón de usuario (+) en la parte superior."
+            android:text="⚠️ Configura hasta 5 contactos con el botón de la parte superior."
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:gravity="center"

@@ -41,6 +41,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     // 🔥 Firebase (BOM + lo que realmente uses)
     implementation(platform("com.google.firebase:firebase-bom:34.2.0"))

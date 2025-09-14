@@ -1,105 +1,141 @@
 package com.example.panico;
 
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
-import android.telephony.PhoneNumberUtils;
+import android.text.Editable;
+import android.text.InputFilter;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
-import java.util.Locale;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-public class ContactsActivity extends AppCompatActivity {
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
-    private EditText etName, etPhone;
-    private Button btnAdd, btnClearAll;
-    private ListView listView;
-    private ArrayAdapter<Contact> adapter;
-    private ArrayList<Contact> data;
-    private ContactsStore store;
+import java.util.List;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+public class ContactsActivity extends AppCompatActivity implements ContactosAdapter.Listener {
+
+    private EmergencyContactsManager manager;
+    private ContactosAdapter adapter;
+
+    private TextInputLayout tilName, tilPhone;
+    private TextInputEditText etName, etPhone;
+    private TextView tvCount;
+    private View emptyState;
+
+    @Override protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_contacts);
 
-        store = new ContactsStore(this);
+        MaterialToolbar tb = findViewById(R.id.toolbar);
+        tb.setNavigationOnClickListener(v -> finish());
 
+        tilName = findViewById(R.id.tilName);
+        tilPhone = findViewById(R.id.tilPhone);
         etName = findViewById(R.id.etName);
         etPhone = findViewById(R.id.etPhone);
-        btnAdd = findViewById(R.id.btnAdd);
-        btnClearAll = findViewById(R.id.btnClearAll);
-        listView = findViewById(R.id.listView);
+        tvCount = findViewById(R.id.tvCount);
+        emptyState = findViewById(R.id.emptyState);
 
-        data = store.getContacts();
-        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, data);
-        listView.setAdapter(adapter);
+        // Fuerza máximo de 10 caracteres en el EditText
+        etPhone.setFilters(new InputFilter[]{ new InputFilter.LengthFilter(10) });
 
-        btnAdd.setOnClickListener(v -> onAdd());
-        btnClearAll.setOnClickListener(v -> onClearAll());
+        // Sanea en vivo: solo dígitos y tope de 10 incluso si pegan texto
+        etPhone.addTextChangedListener(new TextWatcher() {
+            boolean selfChange = false;
 
-        listView.setOnItemLongClickListener((parent, view, position, id) -> {
-            new AlertDialog.Builder(this)
-                    .setTitle("Eliminar contacto")
-                    .setMessage("¿Deseas eliminar este contacto?")
-                    .setPositiveButton("Eliminar", (d, w) -> {
-                        store.removeAt(position);
-                        data.clear();
-                        data.addAll(store.getContacts());
-                        adapter.notifyDataSetChanged();
-                    })
-                    .setNegativeButton("Cancelar", null)
-                    .show();
-            return true;
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (selfChange) return;
+                String digits = s.toString().replaceAll("\\D+", "");
+                if (digits.length() > 10) digits = digits.substring(0, 10);
+                if (!digits.equals(s.toString())) {
+                    selfChange = true;
+                    etPhone.setText(digits);
+                    etPhone.setSelection(digits.length());
+                    selfChange = false;
+                }
+            }
+
+            @Override public void afterTextChanged(Editable s) {}
         });
+
+        findViewById(R.id.btnAdd).setOnClickListener(v -> onAdd());
+        findViewById(R.id.btnClearAll).setOnClickListener(v -> { manager.clearAll(); refresh(); });
+
+        RecyclerView rv = findViewById(R.id.rvContactos);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new ContactosAdapter(this);
+        rv.setAdapter(adapter);
+
+        manager = new EmergencyContactsManager(this);
+        refresh();
     }
 
     private void onAdd() {
-        String name = etName.getText().toString().trim();
-        String phone = etPhone.getText().toString().trim();
+        String nombre = safe(etName.getText());
+        String raw = safe(etPhone.getText()).replaceAll("\\D+", "");
 
-        if (TextUtils.isEmpty(phone)) {
-            Toast.makeText(this, "Ingresa el teléfono", Toast.LENGTH_SHORT).show();
+        tilPhone.setError(null);
+
+        if (raw.length() != 10) {
+            tilPhone.setError("Ingresa exactamente 10 dígitos");
             return;
         }
 
-        // Normaliza un poco la vista (solo presentación, guardamos tal cual)
-        String pretty = PhoneNumberUtils.formatNumber(phone, Locale.getDefault().getCountry());
-        if (!TextUtils.isEmpty(pretty)) phone = pretty;
+        String formatted = formatNumeroMX(raw);
+        String e164 = numeroE164MX(formatted);
 
-        store.addContact(new Contact(name, phone));
-        data.clear();
-        data.addAll(store.getContacts());
-        adapter.notifyDataSetChanged();
+        EmergencyContact c = new EmergencyContact(
+                TextUtils.isEmpty(nombre) ? "Contacto" : nombre,
+                formatted, e164, adapter.getItemCount() == 0 /*primer contacto => principal*/);
 
-        etName.setText("");
-        etPhone.setText("");
-        Toast.makeText(this, "Contacto agregado", Toast.LENGTH_SHORT).show();
+        boolean ok = manager.add(c);
+        if (!ok) {
+            Toast.makeText(this, "Máximo 5 contactos", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        etName.setText(null);
+        etPhone.setText(null);
+        refresh();
     }
 
-    private void onClearAll() {
-        if (data.isEmpty()) {
-            Toast.makeText(this, "No hay contactos", Toast.LENGTH_SHORT).show();
-            return;
+    private void refresh() {
+        List<EmergencyContact> list = manager.getAll();
+        adapter.submit(list);
+        tvCount.setText(list.size() + "/5");
+        emptyState.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+    }
+
+    // Adapter callbacks
+    @Override public void onMakePrimary(int position) { manager.setPrimary(position); refresh(); }
+    @Override public void onDelete(int position) { manager.removeAt(position); refresh(); }
+
+    // Utils
+    private static String safe(CharSequence cs) { return cs == null ? "" : cs.toString().trim(); }
+    private String formatNumeroMX(String digits) {
+        if (digits.startsWith("52")) digits = digits.substring(2);
+        if (digits.length() <= 3) return "+52 " + digits;
+        else if (digits.length() <= 6) return "+52 " + digits.substring(0, 3) + " " + digits.substring(3);
+        else {
+            String p1 = digits.substring(0, 3);
+            String p2 = digits.substring(3, Math.min(6, digits.length()));
+            String p3 = digits.length() > 6 ? digits.substring(6, Math.min(10, digits.length())) : "";
+            return p3.isEmpty() ? "+52 " + p1 + " " + p2 : "+52 " + p1 + " " + p2 + " " + p3;
         }
-        new AlertDialog.Builder(this)
-                .setTitle("Eliminar todos")
-                .setMessage("¿Seguro que deseas borrar todos los contactos?")
-                .setPositiveButton("Sí, borrar todo", (d, w) -> {
-                    store.clearAll();
-                    data.clear();
-                    adapter.notifyDataSetChanged();
-                    Toast.makeText(this, "Contactos eliminados", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("Cancelar", null)
-                .show();
+    }
+    private String numeroE164MX(String text) {
+        String digits = text.replaceAll("\\D+","");
+        if (!digits.startsWith("52")) digits = "52" + digits;
+        return "+" + digits;
     }
 }
